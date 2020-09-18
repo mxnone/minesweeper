@@ -42,7 +42,7 @@
 
 1. Установить composer, если он не установлен;
 2. Перейти в каталог, в который вы будете клонировать проект;
-3. Выполнить команду `composer require mxnone/minesweeper`;
+3. Выполнить команду `composer require trostinsa/minesweeper`;
 4. Перейти в каталог vendor/bin;
 5. Запустить файл minesweeper.bat.
 
@@ -50,4 +50,4 @@
 
 ## Ссылки
 
-Packagist: <https://packagist.org/packages/mxnone/minesweeper>
+Packagist: https://packagist.org/packages/trostinsa/minesweeper
