@@ -1,14 +1,14 @@
 <?php
-    $autoloadPathForGithub = __DIR__.'/../vendor/autoload.php';
-    $autoloadPathForPackagist = __DIR__.'/../../../autoload.php';
+    $pathForGithub = __DIR__.'/../vendor/autoload.php';
+    $pathForPackagist = __DIR__.'/../../../autoload.php';
 
-    if (file_exists($autoloadPathForGithub)) {
-        require_once($autoloadPathForGithub);
+    if (file_exists($pathForGithub)) {
+        require_once($pathForGithub);
     } else {
-        require_once($autoloadPathForPackagist);
+        require_once($pathForPackagist);
     }
 
-    use function mxnone\minesweeper\Controller\startGame;
+    use function trostinsa\minesweeper\Controller\startGame;
 
     startGame();
 ?>
