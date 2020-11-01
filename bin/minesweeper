@@ -10,5 +10,5 @@
 
     use function trostinsa\minesweeper\Controller\startGame;
 
-    startGame();
+    startGame($argv);
 ?>

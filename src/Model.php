@@ -2,58 +2,22 @@
 
 namespace trostinsa\minesweeper\Model;
 
-function dbCreate()
-{
-    $db = new \SQLite3('gamedb.db');
-
-    $gamesInfoTable = "CREATE TABLE gamesInfo(
-        idGame INTEGER PRIMARY KEY,
-        dateGame DATE,
-        timeGame TIME,
-        playerName TEXT,
-        metering INTEGER,
-        bombsCount INTEGER,
-        gameResult TEXT
-    )";
-    $db->exec($gamesInfoTable);
-
-    $concreteGameTable = "CREATE TABLE concreteGame(
-        idGame INTEGER,
-        gameTurn INTEGER,
-        coordinates TEXT,
-        result TEXT
-    )";
-    $db->exec($concreteGameTable);
-
-    $bombsInfoTable = "CREATE TABLE bombsInfo(
-        idGame INTEGER,
-        bombCoordinates TEXT
-    )";
-    $db->exec($bombsInfoTable);
-}
-
-function openDatabase()
-{
-    if (!file_exists("gamedb.db")) {
-        dbCreate();
-    } else {
-        $db = new \SQLite3('gamedb.db');
-    }
-}
+use RedBeanPHP\R as R;
 
 function readCfgFile()
 {
-    if (!file_exists("config.cfg")) {
-        exit("Config файл не обнаружен!\n");
+    $filePath = dirname(__FILE__) . "/../bin/config.cfg";
+    if (!file_exists($filePath)) {
+        exit("Config-файл отсутствует!\n");
     }
-    $configFile = file("config.cfg");
-    $fieldNames = array(0 => "METERING", 1 => "BOMBS_COUNT");
+    $configFile = file($filePath);
+    $fieldNames = array(0 => "DIMENSION", 1 => "BOMBS_COUNT");
     $checker = 0;
     for ($i = 0; $i < count($configFile); $i++) {
         $tempArray = explode(' ', $configFile[$i]);
         $name = $tempArray[0];
         $value = $tempArray[1];
-
+        
         if (in_array($name, $fieldNames)) {
             define($name, (int)$value);
             $checker++;
@@ -67,32 +31,11 @@ function readCfgFile()
     }
 }
 
-function readFromDb($id)
-{
-    $gameDatabase = new \SQLite3('gamedb.db');
-    $query = "SELECT metering, bombsCount FROM gamesInfo";
-    $result = $gameDatabase->query($query);
-    $row = $result->fetchArray();
-    $metering = $row[0];
-    $bombsCount = $row[1];
-    define("METERING", (int)$metering);
-    define("BOMBS_COUNT", (int)$bombsCount);
-}
-
-function getVars($id)
-{
-    readFromDb($id);
-    openDatabase();
-
-    $cellsArray = array();
-    $bombsArray = array();
-    $openedCellsCount = 0;
-}
-
-function makeVars()
+function createVars()
 {
     readCfgFile();
-    openDatabase();
+
+    R::setup("sqlite:gamedb.db");
 
     $cellsArray = array();
     $bombsArray = array();
@@ -115,8 +58,8 @@ function createBombsArray($position)
 {
     global $bombsArray;
     for ($i = 0; $i < BOMBS_COUNT; $i++) {
-        $randX = rand(0, METERING - 1);
-        $randY = rand(0, METERING - 1);
+        $randX = rand(0, DIMENSION - 1);
+        $randY = rand(0, DIMENSION - 1);
         if (!contains($bombsArray, $randX, $randY)) {
             $bombsArray[$i] = array('x' => $randX, 'y' => $randY);
         } else {
@@ -129,29 +72,13 @@ function createBombsArray($position)
     }
 }
 
-function createBombsArrayFromDb($id)
-{
-    global $bombsArray;
-    $gameDatabase = new \SQLite3('gamedb.db');
-    $query = "SELECT * FROM bombsInfo WHERE idGame = '$id'";
-    $result = $gameDatabase->query($query);
-    $i = 0;
-    while ($row = $result->fetchArray()) {
-        $temp = explode(',', $row[1]);
-        $x = $temp[0];
-        $y = $temp[1];
-        $bombsArray[$i] = array('x' => $x, 'y' => $y);
-        $i++;
-    }
-}
-
 function deployBombs()
 {
     global $cellsArray, $bombsArray;
     for ($i = 0; $i < BOMBS_COUNT; $i++) {
         $x = $bombsArray[$i]['x'];
         $y = $bombsArray[$i]['y'];
-        $cellsArray[$y][$x]['itsBombs'] = true;
+        $cellsArray[$y][$x]['isbomb'] = true;
         for ($j = $x - 1; $j <= $x + 1; $j++) {
             for ($k = $y - 1; $k <= $y + 1; $k++) {
                 if (isset($cellsArray[$j]) && isset($cellsArray[$k][$j])) {
@@ -162,33 +89,29 @@ function deployBombs()
     }
 }
 
-function createMakeArr($identifier, $id)
+function createCellsArray()
 {
     global $cellsArray, $bombsArray;
-    for ($i = 0; $i < METERING; $i++) {
-        for ($j = 0; $j < METERING; $j++) {
-            $cellsArray[$i][$j] = array('open' => false, 'registered' => false,
-                                        'itsBombs' => false, 'nearbycount' => 0);
+    for ($i = 0; $i < DIMENSION; $i++) {
+        for ($j = 0; $j < DIMENSION; $j++) {
+            $cellsArray[$i][$j] = array('opened' => false, 'marked' => false,
+                                        'isbomb' => false, 'nearbycount' => 0);
         }
     }
 
-    if ($identifier == "new") {
-        createBombsArray(0);
-    } elseif ($identifier == "replay") {
-        createBombsArrayFromDb($id);
-    }
+    createBombsArray(0);
     insertBombsToDb($bombsArray);
     deployBombs();
 }
 
-function itsBombs($x, $y)
+function isBomb($x, $y)
 {
     global $cellsArray, $lostGame;
     if (
-        $cellsArray[$x][$y]['itsBombs'] == true
-        && $cellsArray[$x][$y]['registered'] == false
+        $cellsArray[$x][$y]['isbomb'] == true
+        && $cellsArray[$x][$y]['marked'] == false
     ) {
-        $cellsArray[$x][$y]['open'] = true;
+        $cellsArray[$x][$y]['opened'] = true;
         return true;
     }
     return false;
@@ -209,10 +132,10 @@ function openArea($x, $y)
 {
     global $openedCellsCount, $cellsArray;
     if (
-        $cellsArray[$x][$y]['open'] == false
-        && $cellsArray[$x][$y]['registered'] == false
+        $cellsArray[$x][$y]['opened'] == false
+        && $cellsArray[$x][$y]['marked'] == false
     ) {
-        $cellsArray[$x][$y]['open'] = true;
+        $cellsArray[$x][$y]['opened'] = true;
         $openedCellsCount += 1;
         if ($cellsArray[$x][$y]['nearbycount'] != 0) {
             return;
@@ -230,28 +153,28 @@ function openArea($x, $y)
 function setFlag($x, $y)
 {
     global $openedCellsCount, $cellsArray;
-    if ($cellsArray[$x][$y]['registered'] == false) {
-        if ($cellsArray[$x][$y]['open'] == false) {
-            $cellsArray[$x][$y]['registered'] = true;
-            $cellsArray[$x][$y]['open'] = true;
+    if ($cellsArray[$x][$y]['marked'] == false) {
+        if ($cellsArray[$x][$y]['opened'] == false) {
+            $cellsArray[$x][$y]['marked'] = true;
+            $cellsArray[$x][$y]['opened'] = true;
             $openedCellsCount++;
         }
     } else {
-            $cellsArray[$x][$y]['registered'] = false;
-            $cellsArray[$x][$y]['open'] = false;
+            $cellsArray[$x][$y]['marked'] = false;
+            $cellsArray[$x][$y]['opened'] = false;
             $openedCellsCount--;
     }
 }
 
-function seeSymbol($x, $y)
+function findSymbol($x, $y)
 {
     global $cellsArray;
-    if ($cellsArray[$y][$x]['open'] == true) {
-        if ($cellsArray[$y][$x]['registered'] == true) {
+    if ($cellsArray[$y][$x]['opened'] == true) {
+        if ($cellsArray[$y][$x]['marked'] == true) {
             return sprintf('%2s', 'F');
         }
 
-        if ($cellsArray[$y][$x]['itsBombs'] == true) {
+        if ($cellsArray[$y][$x]['isbomb'] == true) {
             return sprintf('%2s', '*');
         }
 
@@ -268,81 +191,100 @@ function seeSymbol($x, $y)
     }
 }
 
-function insertInfo()
+function insertInfo($playerName)
 {
-    $gameDatabase = new \SQLite3('gamedb.db');
-
     date_default_timezone_set("Europe/Moscow");
-
+    
     $dateGame = date("d") . "." . date("m") . "." . date("Y");
-    $timeGame = date("H") . ":" . date("i") . ":" . date("s");
-    $playerName = getenv("username");
-    $metering= METERING;
-    $bombsCount = BOMBS_COUNT;
+    $gameTime = date("H") . ":" . date("i") . ":" . date("s");
     $gameResult = "Не окончена";
 
-    $query = "INSERT INTO gamesInfo(
-        dateGame,
-        timeGame, 
-        playerName,
-        metering,
-        bombsCount,
-        gameResult
-    ) VALUES (
-        '$dateGame',
-        '$timeGame', 
-        '$playerName',
-        '$metering',
-        '$bombsCount',
-        '$gameResult' 
-    )";
+    $newRow = R::dispense('gamesinfo');
+    
+    $newRow->dategame = $dateGame;
+    $newRow->gametime = $gameTime;
+    $newRow->playername = $playerName;
+    $newRow->dimension = DIMENSION;
+    $newRow->bombscount = BOMBS_COUNT;
+    $newRow->gameResult = $gameResult;
 
-    $gameDatabase->exec($query);
+    R::store($newRow);
 }
 
-function postGameId()
+function getGameId()
 {
-    $gameDatabase = new \SQLite3('gamedb.db');
-    $query = "SELECT idGame 
-    FROM gamesInfo 
-    ORDER BY idGame DESC LIMIT 1";
-    $result = $gameDatabase->querySingle($query);
+    $result = R::getInsertID();
     define("GAME_ID", $result);
 }
 
 function insertBombsToDb()
 {
     global $bombsArray;
-    $gameDatabase = new \SQLite3('gamedb.db');
-    $gameId = GAME_ID;
     for ($i = 0; $i < BOMBS_COUNT; $i++) {
         $coordinates = $bombsArray[$i]['x'] . "," . $bombsArray[$i]['y'];
-        $query = "INSERT INTO bombsInfo(
-            idGame,
-            bombCoordinates
-        ) VALUES(
-            '$gameId',
-            '$coordinates'
-        )";
-        $gameDatabase->exec($query);
+
+        $newRow = R::dispense('bombsinfo');
+
+        $newRow->idgame = GAME_ID;
+        $newRow->bombcoordinates = $coordinates;
+
+        R::store($newRow);
     }
 }
 
 function insertTurnInfo($turn, $turnResult, $x, $y)
 {
-    $gameDatabase = new \SQLite3('gamedb.db');
-    $gameId = GAME_ID;
     $coordinates = $x . "," . $y;
-    $query = "INSERT INTO concreteGame(
-        idGame,
-        gameTurn,
-        coordinates,
-        result
-    ) VALUES (
-        '$gameId',
-        '$turn',
-        '$coordinates',
-        '$turnResult'
-    )";
-    $gameDatabase->exec($query);
+    $newRow = R::dispense('concretegame');
+    
+    $newRow->idgame = GAME_ID;
+    $newRow->gameturn = $turn;
+    $newRow->coordinates = $coordinates;
+    $newRow->result = $turnResult;
+
+    R::store($newRow);
 }
+
+function updateDatabase($gameResult)
+{
+    $row = R::load('gamesinfo', GAME_ID);
+    $row->gameresult = $gameResult;
+    R::store($row);
+}
+
+function getGamesInfo()
+{
+    R::setup("sqlite:gamedb.db");
+
+    $gamesArray = array();
+
+    $result = R::findAll('gamesinfo');
+    
+    foreach ($result as $row) {
+        array_push($gamesArray, $row);
+    }
+    return $gamesArray;
+}
+
+function idExists($id)
+{
+    R::setup("sqlite:gamedb.db");
+    $count = R::count("gamesinfo", " id = ? ", [$id]);
+    if ($count == 0) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+function getTurnsInfo($id)
+{
+    $turnsArray = array();
+
+    $gameTurns = R::find("concretegame", " idgame = ? ", [$id]);
+    foreach ($gameTurns as $gameTurnsRow) {
+        array_push($turnsArray, $gameTurnsRow);
+    }
+    return $turnsArray;
+}
+?>

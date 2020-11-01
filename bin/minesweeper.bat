@@ -1,4 +1,5 @@
 @echo off
 
-php minesweeper
+php minesweeper %1 %2
+
 pause

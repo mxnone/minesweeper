@@ -8,7 +8,8 @@
         }
     ],
     "require": {
-        "wp-cli/php-cli-tools": "^0.11.11"
+        "wp-cli/php-cli-tools": "^0.11.11",
+		"gabordemooij/redbean": "dev-master"
     },
     "bin": [
         "bin/minesweeper"
@@ -18,6 +19,8 @@
             "src/Controller.php",
             "src/Model.php",
             "src/View.php"
-        ]
-    }
+		]
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
 }
